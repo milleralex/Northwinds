@@ -4,6 +4,65 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import sys
 import mysql.connector
+from datetime import datetime
+
+def getProductDetails(cursor, orderID):
+    command = (
+        "SELECT ProductID, Quantity FROM order_details WHERE OrderID = %s"
+    )
+    cursor.execute(command, (orderID,))
+    return cursor.fetchall()
+
+def addInventoryTransaction(cursor, productDetails, orderID):
+    base = ""
+    now = datetime.now().strftime('\'%Y-%m-%d %H:%M:%S\'')
+    template = """INSERT INTO inventory_transactions 
+    (TransactionType, TransactionCreatedDate, ProductID, Quantity, CustomerOrderID)
+VALUES (1, {}, {}, {}, {});"""
+    for id, quantity in productDetails:
+        base += template.format(now, id, quantity, orderID)
+    command = ("""
+        START TRANSACTION;
+        BEGIN;
+        UPDATE orders SET ShipperID = 1, ShippingFee = 5.00, ShippedDate={date}
+        WHERE OrderID={id};
+        {commands}
+        COMMIT;
+    """.format(commands=base, id=orderID, date=now))
+    print(command)
+    cursor.execute(command, multi=True)
+    print("Order shipped")
+
+def quantityAvailable(cursor, productID):
+    command = (
+        """
+        SELECT qty FROM
+        (SELECT sum(Quantity) - total AS qty, inventory_transactions.ProductID
+        FROM inventory_transactions
+        JOIN
+            (SELECT sum(Quantity) as total, ProductID
+            FROM inventory_transactions
+            WHERE TransactionType > 1 GROUP BY ProductID)
+            AS neg On neg.ProductID = inventory_transactions.ProductID
+        WHERE TransactionType = 1 GROUP BY ProductID
+        ORDER BY ProductID) AS items
+        WHERE ProductID = %s
+    """
+    )
+    cursor.execute(command, (productID,))
+    return cursor.fetchone()[0]
+
+
+def shipOrder(cursor, orderID):
+    productDetails = getProductDetails(cursor, orderID)
+    if not productDetails:
+        print("Order does not exist")
+        return
+    for id, quantityNeeded in productDetails:
+        if quantityNeeded > quantityAvailable(cursor, id):
+            print("Order can't be shipped")
+            return
+    addInventoryTransaction(cursor, productDetails, orderID)
 
 
 def printPendingOrders(cursor):
@@ -50,7 +109,7 @@ def deleteOrder(id, cursor):
     print("{:^6}, {:^10}, {:^12}".format(ID, Customer, Date.strftime("%m/%d/%Y")))
     print("Are you sure you would like to delete Y/N?")
     i = input()
-    if i.strip().lower() != 'Y':
+    if i.strip().lower() != 'y':
         print("Canceled")
         return
     command = (
@@ -62,7 +121,7 @@ def deleteOrder(id, cursor):
         COMMIT;
         """
     )
-    cursor.execute(command, (id,), multi=True)
+    cursor.execute(command, (id, id, id), multi=True)
 
 
 def addCustomerToDB(fields, values, cursor):
@@ -145,10 +204,13 @@ if __name__ == '__main__':
             print("Please enter the ID of the order you'd like to delete")
             id = int(input())
             deleteOrder(id, curA)
+        if choice == "4":
+            print("Please enter the ID of the order you'd like to ship")
+            id = int(input())
+            shipOrder(curA, id)
         if choice == "5":
             printPendingOrders(curA)
         if choice == "7":
             sys.exit()
-
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
