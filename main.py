@@ -23,6 +23,35 @@ def splitOnCapital(string):
     else:
         return string
 
+
+def deleteOrder(id, cursor):
+    preview = "SELECT OrderID, ShipName, OrderDate FROM orders WHERE OrderID = %s"
+    cursor.execute(preview, (id,))
+    preview_data = cursor.fetchone()
+    if not preview_data:
+        print("Order not found")
+        print("Cancelling...")
+        return
+    print("Order ID,    Customer,    Date")
+    ID, Customer, Date = preview_data
+    print("{:^6}, {:^10}, {:^12}".format(ID, Customer, Date.strftime("%m/%d/%Y")))
+    print("Are you sure you would like to delete Y/N?")
+    i = input()
+    if i.strip().lower() != 'Y':
+        print("Canceled")
+        return
+    command = (
+        """START TRANSACTION;
+        BEGIN;
+        DELETE FROM order_details where OrderID = %s;
+        DELETE FROM invoices WHERE OrderID= %s;
+        DELETE FROM orders where OrderID = %s;
+        COMMIT;
+        """
+    )
+    cursor.execute(command, (id,), multi=True)
+
+
 def addCustomerToDB(fields, values, cursor):
     values_list = []
     fields.remove("ID")
@@ -100,6 +129,10 @@ if __name__ == '__main__':
                     ans[field] = response
             if ans:
                 addCustomerToDB(db_customer_fields, ans, curA)
+        if choice == "3":
+            print("Please enter the ID of the order you'd like to delete")
+            id = int(input())
+            deleteOrder(id, curA)
         if choice == "7":
             sys.exit()
 
