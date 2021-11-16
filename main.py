@@ -3,11 +3,24 @@
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import sys
+import mysql.connector
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+def printPendingOrders(cursor):
+    command = (
+        """SELECT OrderID, ShipName, OrderDate
+            FROM orders
+            WHERE ShippedDate IS NULL
+            ORDER BY OrderDate
+        """
+    )
+    cursor.execute(command)
+    results = cursor.fetchall()
+    print("Order ID,    Customer,    Date")
+    for line in results:
+        ID, Customer, Date = line
+        print("{:^6}, {:^10}, {:^12}".format(ID, Customer, Date.strftime("%m/%d/%Y")))
+
 
 def splitOnCapital(string):
     if string.isupper():
@@ -79,8 +92,7 @@ def addCustomerToDB(fields, values, cursor):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    print_hi('PyCharm')
-    import mysql.connector
+
 
     # Connect with the MySQL Server
     cnx = mysql.connector.connect(user='admin', password='admin', database='northwind')
@@ -133,6 +145,8 @@ if __name__ == '__main__':
             print("Please enter the ID of the order you'd like to delete")
             id = int(input())
             deleteOrder(id, curA)
+        if choice == "5":
+            printPendingOrders(curA)
         if choice == "7":
             sys.exit()
 
