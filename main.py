@@ -123,6 +123,37 @@ def deleteOrder(id, cursor):
     )
     cursor.execute(command, (id, id, id), multi=True)
 
+def createOrder(cursor):
+    print("Please input the customer id for this order:")
+    customer_id = input()
+    print("Please input all of the product ids for this order.")
+    print("When done press enter")
+    ans = [input()]
+    while ans[-1]:
+        ans.append(input())
+    base = ""
+    template = """
+        INSERT INTO order_details(OrderID, ProductID, Quantity, UnitPrice, Discount, StatusID)
+        SELECT @last_id, ID, {0}, ListPrice, 0, 0 FROM products
+        WHERE id={0} AND Discontinued=0;
+    """
+    for p_id in ans[:-1]:
+        base = base + "\n " + template.format(p_id)
+
+
+    commad = (
+        """ START TRANSACTION;
+        BEGIN;
+        INSERT INTO orders(EmployeeID, CustomerID, OrderDate, ShipName, ShipAddress,
+                           ShipCity, ShipState, ShipZIP, ShipCountry)
+        SELECT 1, 12, NOW(), CONCAT(FirstName, " ", LastName), Address, City, State, ZIP, Country FROM customers
+        WHERE id=12;
+        SET @last_id = LAST_INSERT_ID();
+        """ + "\n " + base + "\n Commit;"
+    )
+    print(commad)
+    cursor.execute(commad, multi=True)
+    print("Order Sumbitted")
 
 def addCustomerToDB(fields, values, cursor):
     values_list = []
@@ -200,6 +231,8 @@ if __name__ == '__main__':
                     ans[field] = response
             if ans:
                 addCustomerToDB(db_customer_fields, ans, curA)
+        if choice == "2":
+            createOrder(curA)
         if choice == "3":
             print("Please enter the ID of the order you'd like to delete")
             id = int(input())
