@@ -125,34 +125,30 @@ def deleteOrder(id, cursor):
 
 def createOrder(cursor):
     print("Please input the customer id for this order:")
-    customer_id = input()
+    customer_id = int(input())
     print("Please input all of the product ids for this order.")
     print("When done press enter")
     ans = [input()]
     while ans[-1]:
         ans.append(input())
-    base = ""
     template = """
-        INSERT INTO order_details(OrderID, ProductID, Quantity, UnitPrice, Discount, StatusID)
-        SELECT @last_id, ID, {0}, ListPrice, 0, 0 FROM products
-        WHERE id={0} AND Discontinued=0;
+        INSERT INTO order_details (OrderID, ProductID, Quantity, UnitPrice, Discount, StatusID)
+        SELECT %s, ID, %s, ListPrice, 0, 0 FROM products
+        WHERE ID=%s AND Discontinued=0;
     """
-    for p_id in ans[:-1]:
-        base = base + "\n " + template.format(p_id)
 
-
-    commad = (
-        """ START TRANSACTION;
-        BEGIN;
-        INSERT INTO orders(EmployeeID, CustomerID, OrderDate, ShipName, ShipAddress,
+    command = (
+        """
+        INSERT INTO orders (EmployeeID, CustomerID, OrderDate, ShipName, ShipAddress,
                            ShipCity, ShipState, ShipZIP, ShipCountry)
-        SELECT 1, 12, NOW(), CONCAT(FirstName, " ", LastName), Address, City, State, ZIP, Country FROM customers
-        WHERE id=12;
-        SET @last_id = LAST_INSERT_ID();
-        """ + "\n " + base + "\n Commit;"
+        SELECT 1, %s, NOW(), CONCAT(FirstName, " ", LastName), Address, City, State, ZIP, Country FROM customers
+        WHERE ID=%s;
+        """
     )
-    print(commad)
-    cursor.execute(commad, multi=True)
+    cursor.execute(command, (customer_id, customer_id))
+    id = cursor.getlastrowid()
+    for p_id in ans[:-1]:
+        cursor.execute(template, (id, int(p_id), int(p_id)))
     print("Order Sumbitted")
 
 def addCustomerToDB(fields, values, cursor):
@@ -188,6 +184,7 @@ if __name__ == '__main__':
     cnx = mysql.connector.connect(user='admin', password='admin', database='northwind')
 
     curA = cnx.cursor(buffered=True)
+
 
     query = (
         "SHOW COLUMNS FROM Customers"
@@ -230,20 +227,35 @@ if __name__ == '__main__':
                 else:
                     ans[field] = response
             if ans:
-                addCustomerToDB(db_customer_fields, ans, curA)
+                try:
+                    addCustomerToDB(db_customer_fields, ans, curA)
+                except mysql.connector.Error as error:
+                    print("Error: {}".format(error))
         if choice == "2":
-            createOrder(curA)
+            try:
+                createOrder(curA)
+                cnx.commit()
+            except mysql.connector.Error as error:
+                print("Error: {}".format(error))
         if choice == "3":
             print("Please enter the ID of the order you'd like to delete")
             id = int(input())
-            deleteOrder(id, curA)
+            try:
+                deleteOrder(id, curA)
+            except mysql.connector.Error as error:
+                print("Error: {}".format(error))
         if choice == "4":
             print("Please enter the ID of the order you'd like to ship")
             id = int(input())
-            shipOrder(curA, id)
+            try:
+                shipOrder(curA, id)
+            except mysql.connector.Error as error:
+                print("Error: {}".format(error))
         if choice == "5":
-            printPendingOrders(curA)
+            try:
+                printPendingOrders(curA)
+            except mysql.connector.Error as error:
+                print("Error: {}".format(error))
         if choice == "7":
             sys.exit()
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
